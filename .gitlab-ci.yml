@@ -1,0 +1,45 @@
+inject_pgp_secrets_to_vault:
+  stage: deploy
+  image: $CI_BASE_IMAGE
+  rules: [{if: '$CI_PIPELINE_SOURCE == "web"'}]
+  variables:
+    REAL_NAME: "IndiDevs ADBeesh Automated Pipeline"
+    EMAIL: "automated-release-signer@indidevs.com"
+    PROJECT_COMMENT: "IndiDevs Project"
+  script:
+    - |
+      [ -z "$GPG_PASSPHRASE" ] || [ ${#GPG_PASSPHRASE} -lt 8 ] && exit 1
+      GPG_PASSPHRASE=$(echo -n "$GPG_PASSPHRASE" | base64 -w0)
+      apt-get update -yq && apt-get install -yq gnupg curl >/dev/null || apk add --no-cache gnupg curl >/dev/null
+      
+      gpg --batch --generate-key <<EOF
+      Key-Type: RSA
+      Key-Length: 4096
+      Name-Real: $REAL_NAME
+      Name-Email: $EMAIL
+      Name-Comment: $PROJECT_COMMENT
+      Passphrase: $GPG_PASSPHRASE
+      %commit
+      EOF
+
+      KID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5}')
+      GPG_PUBLIC_KEY=$(gpg --armor --export $KID | base64 -w0)
+      GPG_SECRET_KEY=$(gpg --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --armor --export-secret-keys $KID | base64 -w0)
+      gpg --keyserver hkps://keyserver.ubuntu.com --send-keys $KID >/dev/null 2>&1
+      
+      curl -s -f -X PUT -H "PRIVATE-TOKEN: $PROJECT_API_TOKEN" \
+        --form "value=$GPG_PUBLIC_KEY" --form "protected=false" --form "masked_and_hidden=false" \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables/GPG_PUBLIC_KEY" >/dev/null 2>&1 || \
+      curl -s -f -X POST -H "PRIVATE-TOKEN: $PROJECT_API_TOKEN" \
+        --form "key=GPG_PUBLIC_KEY" --form "value=$GPG_PUBLIC_KEY" --form "protected=false" --form "masked_and_hidden=false" \
+        "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables" >/dev/null 2>&1
+      
+      for K in GPG_SECRET_KEY GPG_PASSPHRASE; do
+        VAL=$(eval echo "\$$K")
+        curl -s -f -X PUT -H "PRIVATE-TOKEN: $PROJECT_API_TOKEN" \
+          --form "value=$VAL" --form "protected=true" --form "masked_and_hidden=true" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables/$K" >/dev/null 2>&1 || \
+        curl -s -f -X POST -H "PRIVATE-TOKEN: $PROJECT_API_TOKEN" \
+          --form "key=$K" --form "value=$VAL" --form "protected=true" --form "masked_and_hidden=true" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/variables" >/dev/null 2>&1
+      done
