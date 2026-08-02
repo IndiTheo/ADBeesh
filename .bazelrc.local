@@ -1,0 +1,5 @@
+# Bazel configuration overrides for local development
+
+# Android SDK overrides
+common --repo_env=ANDROID_HOME
+common --repo_env=ANDROID_NDK_HOME

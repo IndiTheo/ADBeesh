@@ -1,0 +1,7 @@
+.bazel-cache
+.bazel-repo-cache
+bazel-*
+.git
+.gradle
+build
+node_modules

@@ -1,0 +1,32 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    wget \
+    git \
+    unzip \
+    zip \
+    ca-certificates \
+    python3 \
+    jq \
+    libncurses6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install mise for hermetic tool management
+RUN curl https://mise.run | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Setup mise tools using the CI configuration
+COPY ci/mise.toml .mise.toml
+RUN mise trust .mise.toml && \
+    mise install && \
+    # First update cmdline-tools to ensure sdkmanager can find modern packages like android-37.0
+    yes | mise x -- sdkmanager "cmdline-tools;latest" && \
+    # Then use the updated sdkmanager (located in cmdline-tools/latest) to install the rest
+    yes | mise x -- bash -c '$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" "ndk;$NDK_VERSION"' && \
+    ln -s "$(mise x -- which bazelisk)" /usr/local/bin/bazel && \
+    # Cleanup installers and temporary files
+    rm -rf /root/.local/share/mise/downloads/* && \
+    rm -rf /root/.cache/mise/* && \
+    mise x -- bash -c 'rm -rf $ANDROID_HOME/temp/*'

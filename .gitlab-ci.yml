@@ -1,0 +1,176 @@
+---
+variables:
+  CI_BASE_IMAGE: "$CI_REGISTRY_IMAGE:latest"
+  MISE_CONFIG_FILE: "ci/mise.toml"
+
+cache:
+  key:
+    files:
+      - MODULE.bazel.lock
+  paths:
+    - .bazel-cache/
+    - .bazel-repo-cache/
+
+default:
+  interruptible: true
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+stages:
+  - infra
+  - lint
+  - build
+  - docs
+  - publish
+
+build_ci_base_image:
+  stage: infra
+  image: quay.io/buildah/stable:v1.35.4
+  variables:
+    STORAGE_DRIVER: vfs
+  cache: []
+  rules:
+    - changes:
+        - ci/Containerfile
+        - ci/.containerignore
+        - ci/mise.toml
+  script:
+    - buildah login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - buildah build --ignorefile ci/.containerignore -t $CI_BASE_IMAGE -f ci/Containerfile .
+    - buildah push $CI_BASE_IMAGE
+
+lint_commit:
+  stage: lint
+  image: node:alpine
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - npm install -g @commitlint/cli @commitlint/config-conventional
+    - |
+      if [ ! -f commitlint.config.js ]; then
+        echo "module.exports = { extends: ['@commitlint/config-conventional'] };" > commitlint.config.js
+      fi
+  script:
+    - echo "${CI_MERGE_REQUEST_TITLE}" | commitlint
+
+lint_code:
+  stage: lint
+  image: $CI_BASE_IMAGE
+  rules:
+    - changes:
+      - src/**/*
+      - tools/lint
+      - ci/Containerfile
+      - ci/.containerignore
+      - BUILD.bazel
+      - MODULE.bazel
+
+  before_script:
+    - eval "$(mise activate bash --quiet)"
+  script:
+    - bazel run --config=ci //:lint
+
+build_library:
+  stage: build
+  image: $CI_BASE_IMAGE
+  before_script:
+    - eval "$(mise activate bash --quiet)"
+  script:
+    - bazel build --config=ci //:dist_flat
+    - mkdir -p build/outputs
+    - unzip bazel-bin/dist_flat.zip -d build/outputs
+  artifacts:
+    paths:
+      - build/outputs/
+    expire_in: 1 week
+
+build_docs:
+  stage: docs
+  image: $CI_BASE_IMAGE
+  before_script:
+    - eval "$(mise activate bash --quiet)"
+  script:
+    - bazel build --config=ci //:docs
+    - mkdir -p build/docs
+    - unzip bazel-bin/adbeesh-docs.zip -d build/docs
+  artifacts:
+    expose_as: 'API Documentation'
+    paths:
+      - build/docs
+    expire_in: 1 week
+
+pages:
+  stage: publish
+  image: $CI_BASE_IMAGE
+  needs: [ build_docs ]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - mkdir -p public
+    - cp -r build/docs/* public/
+  artifacts:
+    paths:
+      - public
+
+publish_internal:
+  stage: publish
+  image: $CI_BASE_IMAGE
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$/
+  before_script:
+    - eval "$(mise activate bash --quiet)"
+  script:
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        export ADBEESH_VERSION="${CI_COMMIT_TAG#v}"
+      else
+        export ADBEESH_VERSION="0.0.0-${CI_COMMIT_SHORT_SHA}"
+      fi
+    - export MAVEN_REPO="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven"
+    - export MAVEN_USER="gitlab-ci-token"
+    - export MAVEN_PASSWORD="${CI_JOB_TOKEN}"
+    - bazel run --config=ci //:publish
+
+stage_maven:
+  stage: publish
+  image: $CI_BASE_IMAGE
+  needs: [ build_library ]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$/
+  before_script:
+    - eval "$(mise activate bash --quiet)"
+  script:
+    - export ADBEESH_VERSION="${CI_COMMIT_TAG#v}"
+    - bazel build --config=ci //:dist_maven
+    - mkdir -p build/staging-deploy
+    - unzip bazel-bin/dist_maven.zip -d build/staging-deploy
+  artifacts:
+    paths:
+      - "build/staging-deploy"
+    expire_in: 1 day
+
+publish_maven:
+  stage: publish
+  image: jreleaser/jreleaser-slim:v1.24.0
+  needs: [ stage_maven ]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$/
+      when: manual
+  variables:
+    JRELEASER_GPG_PUBLIC_KEY: "$GPG_PUBLIC_KEY"
+    JRELEASER_GPG_SECRET_KEY: "$GPG_SECRET_KEY"
+    JRELEASER_GPG_PASSPHRASE: "$GPG_PASSPHRASE"
+  script:
+    - export JRELEASER_PROJECT_VERSION="${CI_COMMIT_TAG#v}"
+    - export JRELEASER_GPG_PUBLIC_KEY=$(echo "$GPG_PUBLIC_KEY" | base64 -d)
+    - export JRELEASER_GPG_SECRET_KEY=$(echo "$GPG_SECRET_KEY" | base64 -d)
+    - export JRELEASER_NEXUS2_SONATYPE_SNAPSHOT_USERNAME="${JRELEASER_MAVENCENTRAL_USERNAME}"
+    - export JRELEASER_NEXUS2_SONATYPE_SNAPSHOT_PASSWORD="${JRELEASER_MAVENCENTRAL_PASSWORD}"
+    - JRELEASER_MAVENCENTRAL_STAGE=UPLOAD jreleaser deploy

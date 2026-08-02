@@ -1,0 +1,12 @@
+[vars]
+ndk_v = "30.0.14904198"
+
+[tools]
+java = "17"
+android-sdk = "latest"
+bazelisk = "latest"
+
+[env]
+NDK_VERSION = "{{ vars.ndk_v }}"
+# Rely on automatic ANDROID_HOME
+ANDROID_NDK_HOME = { value = "${ANDROID_HOME}/ndk/{{ vars.ndk_v }}", tools = true }

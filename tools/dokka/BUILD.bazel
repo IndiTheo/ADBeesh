@@ -1,0 +1,17 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+java_binary(
+    name = "dokka_cli",
+    main_class = "org.jetbrains.dokka.MainKt",
+    jvm_flags = ["-Xmx2G"],
+    runtime_deps = [
+        "@dokka//:org_jetbrains_dokka_dokka_cli",
+        "@dokka//:org_jetbrains_dokka_dokka_base",
+        "@dokka//:org_jetbrains_dokka_analysis_kotlin_symbols",
+        "@dokka//:org_jetbrains_kotlinx_kotlinx_html_jvm",
+        "@dokka//:org_jetbrains_kotlin_kotlin_stdlib",
+        "@dokka//:org_jetbrains_kotlin_kotlin_reflect",
+    ],
+)

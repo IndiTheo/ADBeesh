@@ -1,0 +1,25 @@
+build --tool_java_runtime_version=remotejdk_17
+build --java_runtime_version=remotejdk_17
+build --java_language_version=17
+build --tool_java_language_version=17
+
+build --android_platforms=//:arm64-v8a,//:x86_64
+
+# Use a persistent disk cache to avoid recompiling slow dependencies
+build --disk_cache=~/.cache/bazel-disk-cache
+
+# Show test errors in the terminal
+test --test_output=errors
+
+# Android SDK
+common --repo_env=ANDROID_HOME
+common --repo_env=ANDROID_NDK_HOME
+
+# Local configurations
+try-import %workspace%/.bazelrc.local
+
+# CI-specific disk and repository caching
+build:ci --disk_cache=.bazel-cache
+build:ci --repository_cache=.bazel-repo-cache
+build:ci --repo_contents_cache=
+build:ci --announce_rc

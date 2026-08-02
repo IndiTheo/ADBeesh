@@ -1,0 +1,6 @@
+[*.{kt,kts}]
+ktlint_code_style = android_studio
+max_line_length = 100
+insert_final_newline = true
+ktlint_standard_function-naming = disabled
+ktlint_standard_package-name = disabled

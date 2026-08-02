@@ -1,0 +1,155 @@
+load("@rules_android//rules:rules.bzl", "android_library")
+load("@rules_kotlin//kotlin:android.bzl", "kt_android_library")
+load("@rules_jvm_external//:defs.bzl", "java_export")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load("@adbeesh_version//:version.bzl", "VERSION")
+load("@rules_jvm_external//private/rules:maven_publish.bzl", "maven_publish")
+
+load("//tools/dokka:dokka.bzl", "dokka_archive")
+
+package(default_visibility = ["//visibility:public"])
+
+platform(
+    name = "arm64-v8a",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:arm64",
+    ],
+)
+
+platform(
+    name = "x86_64",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+exports_files([
+    ".editorconfig",
+    "MODULE.bazel",
+])
+
+alias(
+    name = "lint",
+    actual = "//tools/lint:format.check",
+)
+
+alias(
+    name = "format",
+    actual = "//tools/lint:format",
+)
+
+alias(
+    name = "test-app",
+    actual = "//test-app:test-app",
+)
+
+# Primary Android Library target
+kt_android_library(
+    name = "adbeesh",
+    srcs = glob([
+        "src/main/kotlin/**/*.kt",
+    ]),
+    resources = glob([
+        "src/main/resources/**",
+    ]),
+    deps = [
+        "@adbeesh_maven//:com_github_IndiTheo_Kadb_kadb",
+        "@adbeesh_maven//:com_github_IndiTheo_Kadb_kadb_android",
+        "@adbeesh_maven//:com_github_IndiTheo_Kadb_kadb_mdns",
+        "@adbeesh_maven//:com_github_IndiTheo_Kadb_kadb_mdns_android",
+        "@adbeesh_maven//:org_conscrypt_conscrypt_android",
+        "@adbeesh_maven//:androidx_core_core_ktx",
+        "@adbeesh_maven//:androidx_security_security_crypto",
+        "@adbeesh_maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
+        "@adbeesh_maven//:org_jetbrains_kotlinx_kotlinx_coroutines_android",
+        "@adbeesh_maven//:androidx_annotation_annotation",
+    ],
+    exports = [
+        # Required for users to access session.kadb
+        "@adbeesh_maven//:com_github_IndiTheo_Kadb_kadb",
+        # Required for users to use pairing.status (StateFlow)
+        "@adbeesh_maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
+    ],
+    manifest = "src/main/AndroidManifest.xml",
+    exports_manifest = 1,
+    custom_package = "com.indidevs.android.adbeesh",
+    visibility = ["//visibility:public"],
+    proguard_specs = ["proguard-rules.pro"],
+)
+
+# Metadata generator producing the .pom file with transitive dependencies
+java_export(
+    name = "adbeesh_maven",
+    maven_coordinates = "com.indidevs.android:adbeesh:%s" % VERSION,
+    exports = [":adbeesh"],
+    pom_template = "//:pom.tmpl",
+)
+
+# Publication tool for uploading AAR and POM to Maven repositories
+# Usage: bazel run //:publish
+maven_publish(
+    name = "publish",
+    coordinates = "com.indidevs.android:adbeesh:%s" % VERSION,
+    artifact = ":adbeesh.aar",
+    pom = ":adbeesh_maven-pom",
+)
+
+# Internal rule to organize files into Maven repository directory structure
+pkg_files(
+    name = "staging_files",
+    srcs = [
+        ":adbeesh.aar",
+        ":adbeesh_maven-pom",
+        ":adbeesh_maven-maven-source",
+        ":adbeesh_maven-docs",
+    ],
+    prefix = "com/indidevs/android/adbeesh/%s" % VERSION,
+    renames = {
+        ":adbeesh.aar": "adbeesh-%s.aar" % VERSION,
+        ":adbeesh_maven-pom": "adbeesh-%s.pom" % VERSION,
+        ":adbeesh_maven-maven-source": "adbeesh-%s-sources.jar" % VERSION,
+        ":adbeesh_maven-docs": "adbeesh-%s-javadoc.jar" % VERSION,
+    },
+)
+
+# --- Distribution Targets ---
+
+# Human-readable distribution for quick CI artifact access
+pkg_zip(
+    name = "dist_flat",
+    srcs = [
+        ":adbeesh.aar",
+        ":adbeesh_maven-pom",
+    ],
+)
+
+# Maven-structured distribution for official releases (used by JReleaser)
+pkg_zip(
+    name = "dist_maven",
+    srcs = [":staging_files"],
+)
+
+# Filegroup to simplify documentation source management
+filegroup(
+    name = "documented_sources",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+)
+
+# API Documentation
+dokka_archive(
+    name = "docs",
+    srcs = [":documented_sources"],
+    deps = [
+        ":adbeesh",
+        "@androidsdk//:platforms/android-37.0/android.jar",
+    ],
+    module_name = "adbeesh",
+    platform = "android",
+    external_links = [
+        "https://developer.android.com/reference/^https://developer.android.com/reference/package-list",
+        "https://kotlinlang.org/api/latest/jvm/stdlib/^https://kotlinlang.org/api/latest/jvm/stdlib/package-list",
+    ],
+)

@@ -1,0 +1,44 @@
+load("@rules_android//rules:rules.bzl", "android_binary")
+load("@rules_kotlin//kotlin:android.bzl", "kt_android_library")
+load("@rules_kotlin//kotlin:core.bzl", "kt_compiler_plugin")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_compiler_plugin(
+    name = "compose_plugin",
+    id = "androidx.compose.compiler.plugins.kotlin",
+    target_embedded_compiler = True,
+    deps = ["@adbeesh_maven//:org_jetbrains_kotlin_kotlin_compose_compiler_plugin_embeddable"],
+)
+
+kt_android_library(
+    name = "test-app-lib",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    custom_package = "com.indidevs.android.adbeesh.test",
+    manifest = "src/main/AndroidManifest.xml",
+    exports_manifest = 1,
+    plugins = [":compose_plugin"],
+    resource_files = glob(["src/main/res/**"]),
+    deps = [
+        "//:adbeesh",
+        "@adbeesh_maven//:androidx_activity_activity_compose",
+        "@adbeesh_maven//:androidx_compose_foundation_foundation",
+        "@adbeesh_maven//:androidx_compose_foundation_foundation_layout",
+        "@adbeesh_maven//:androidx_compose_material3_material3",
+        "@adbeesh_maven//:androidx_compose_material_material_icons_core",
+        "@adbeesh_maven//:androidx_compose_ui_ui",
+        "@adbeesh_maven//:androidx_core_core_ktx",
+        "@adbeesh_maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
+    ],
+)
+
+android_binary(
+    name = "test-app",
+    custom_package = "com.indidevs.android.adbeesh.test",
+    manifest = "src/main/AndroidManifest.xml",
+    manifest_values = {
+        "minSdkVersion": "31",
+        "targetSdkVersion": "37",
+    },
+    deps = [":test-app-lib"],
+)

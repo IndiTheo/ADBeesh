@@ -1,0 +1,68 @@
+# =================================
+# BAZEL BUILD
+# =================================
+
+# Build outputs
+/bazel-*
+/output/
+
+# Local build configurations
+.bazelrc.local
+user.bazelrc
+
+# Bazel cache
+.bazel-cache/
+.bazel-repo-cache/
+
+
+# =================================
+# IDE & EDITOR CONFIGURATIONS
+# =================================
+
+# --- JetBrains ---
+.idea/
+.idea_modules/
+**/out/
+local.properties
+
+# --- Android Studio with Bazel (ASwB) ---
+.aswb/
+
+# --- VS Code ---
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+
+# --- Eclipse Theia ---
+.theia/*
+!.theia/launch.json
+!.theia/tasks.json
+!.theia/settings.json
+
+# --- Eclipse ---
+.eclipse
+.metadata/
+.project
+.classpath
+.settings/
+*.launch
+.factorypath
+.externalToolBuilders/
+
+# =================================
+# JVM ARTIFACTS
+# =================================
+
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+
+# =================================
+# GENERIC LOCAL FILES
+# =================================
+
+local_docs
+docs

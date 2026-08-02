@@ -1,0 +1,59 @@
+project:
+  name: adbeesh
+  description: "Wireless Debugging pairing workflow library for Android apps."
+  longDescription: |
+    ADBeesh is a library that allows an Android app to establish a local ADB connection
+    to itself via Wireless Debugging, providing a bridge for privileged command
+    execution as the shell (2000) user. It handles the heavy lifting of ADB key
+    management and UI interaction, allowing developers to guide users through the
+    pairing workflow seamlessly.
+
+    Key features:
+    - Standardized and customizable ADB pairing workflow.
+    - Identity management using Android's encrypted shared preferences.
+    - Foreground service and notification management for reliable pairing.
+    - Integrated mDNS discovery for local ADB services.
+    - Session management for executing shell commands and advanced ADB features with Kadb
+
+    Designed for power-user apps that require elevated privileges. ADBeesh provides a Shizuku-like
+    experience that can be embedded directly into your application.
+  authors:
+    - IndiDevs
+    - IndiTheo
+  license: MIT
+  links:
+    homepage: "https://gitlab.com/IndiDevs/adbeesh"
+    documentation: "https://indidevs.gitlab.io/adbeesh"
+  languages:
+    java:
+      groupId: com.indidevs.android
+      artifactId: adbeesh
+
+signing:
+  active: ALWAYS
+  pgp:
+    armored: true
+    mode: MEMORY
+
+deploy:
+  maven:
+    mavenCentral:
+      sonatype:
+        active: RELEASE
+        url: https://central.sonatype.com/api/v1/publisher
+        stagingRepositories:
+          - "build/staging-deploy"
+        # Disables static POM verification for Android AAR
+        verifyPom: false
+    nexus2:
+      sonatype-snapshot:
+        active: SNAPSHOT
+        snapshotUrl: https://central.sonatype.com/repository/maven-snapshots/
+        applyMavenCentralRules: true
+        snapshotSupported: true
+        closeRepository: true
+        releaseRepository: true
+        stagingRepositories:
+          - "build/staging-deploy"
+        # Disables static POM verification for Android AAR
+        verifyPom: false
