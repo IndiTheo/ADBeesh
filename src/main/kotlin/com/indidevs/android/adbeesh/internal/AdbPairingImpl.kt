@@ -190,9 +190,7 @@ internal class AdbPairingImpl(
 
     override fun close() {
         pairingJob?.cancel()
-        if (externalScope == null) {
-            scope.cancel()
-        }
+        _status.value = AdbPairingStatus.IDLE
     }
 
     private fun getOrCreateKeyPair(): KeyPair {
