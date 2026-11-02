@@ -23,7 +23,6 @@ import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -180,12 +179,8 @@ internal class AdbPairingImpl(
 
     override fun unpair() {
         pairingJob?.cancel()
-        scope.launch(Dispatchers.IO + NonCancellable) {
-            pairingMutex.withLock {
-                _status.value = AdbPairingStatus.IDLE
-                identityStore.delete()
-            }
-        }
+        _status.value = AdbPairingStatus.IDLE
+        identityStore.delete()
     }
 
     override fun close() {
