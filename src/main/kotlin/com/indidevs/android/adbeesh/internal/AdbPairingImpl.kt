@@ -135,8 +135,7 @@ internal class AdbPairingImpl(
                                 workflow.onPairingSuccess(id)
                             }
                         } else {
-                            _status.value = AdbPairingStatus.ERROR
-                            workflow.onPairingError(id, "Rejected by device")
+                            onPairingError(workflow, "Rejected by device")
                             throw AdbAuthenticationException("Pairing failed")
                         }
                     }
@@ -144,8 +143,7 @@ internal class AdbPairingImpl(
                     _status.value = AdbPairingStatus.IDLE
                     throw e
                 } catch (e: Exception) {
-                    _status.value = AdbPairingStatus.ERROR
-                    workflow.onPairingError(id, e.message ?: "Unknown error")
+                    onPairingError(workflow, e.message ?: "Unknown error")
                     throw e
                 } finally {
                     pairingJob = null
@@ -186,6 +184,12 @@ internal class AdbPairingImpl(
     override fun close() {
         pairingJob?.cancel()
         _status.value = AdbPairingStatus.IDLE
+    }
+
+    private fun onPairingError(workflow: AdbPairingWorkflow, errorMessage: String) {
+        _status.value = AdbPairingStatus.ERROR
+        workflow.onPairingError(id, errorMessage)
+        identityStore.delete()
     }
 
     private fun getOrCreateKeyPair(): KeyPair {
