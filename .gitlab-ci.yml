@@ -3,6 +3,30 @@ variables:
   CI_BASE_IMAGE: "$CI_REGISTRY_IMAGE:latest"
   MISE_CONFIG_FILE: "ci/mise.toml"
 
+.anchors:
+  lint_changes: &lint_changes
+    - src/**/*
+    - tools/lint
+    - ci/Containerfile
+    - ci/.containerignore
+    - BUILD.bazel
+    - MODULE.bazel
+
+  build_changes: &build_changes
+    - src/**/*
+    - tools/**/*
+    - BUILD.bazel
+    - MODULE.bazel
+    - MODULE.bazel.lock
+    - .bazelrc
+
+  doc_changes: &doc_changes
+    - src/**/*
+    - tools/dokka/**/*
+    - tools/BUILD.bazel
+    - BUILD.bazel
+    - MODULE.bazel
+
 cache:
   key:
     files:
@@ -63,13 +87,7 @@ lint_code:
   stage: lint
   image: $CI_BASE_IMAGE
   rules:
-    - changes:
-        - src/**/*
-        - tools/lint
-        - ci/Containerfile
-        - ci/.containerignore
-        - BUILD.bazel
-        - MODULE.bazel
+    - changes: *lint_changes
 
   before_script:
     - eval "$(mise activate bash --quiet)"
@@ -80,13 +98,7 @@ build_library:
   stage: build
   image: $CI_BASE_IMAGE
   rules:
-    - changes:
-        - src/**/*
-        - tools/**/*
-        - BUILD.bazel
-        - MODULE.bazel
-        - MODULE.bazel.lock
-        - .bazelrc
+    - changes: *build_changes
   before_script:
     - eval "$(mise activate bash --quiet)"
   script:
@@ -102,12 +114,7 @@ build_docs:
   stage: docs
   image: $CI_BASE_IMAGE
   rules:
-    - changes:
-        - src/**/*
-        - tools/dokka/**/*
-        - tools/BUILD.bazel
-        - BUILD.bazel
-        - MODULE.bazel
+    - changes: *doc_changes
   before_script:
     - eval "$(mise activate bash --quiet)"
   script:
@@ -126,6 +133,7 @@ pages:
   needs: [ build_docs ]
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes: *doc_changes
   script:
     - mkdir -p public
     - cp -r build/docs/* public/
@@ -136,6 +144,7 @@ pages:
 publish_internal:
   stage: publish
   image: $CI_BASE_IMAGE
+  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
