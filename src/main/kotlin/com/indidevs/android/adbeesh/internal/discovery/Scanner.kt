@@ -78,6 +78,10 @@ internal class Scanner(private val context: Context) {
                 val newItems = currentSet - lastEmitted
                 lastEmitted = currentSet
                 newItems.forEach { endpoint ->
+                    Log.d(
+                        TAG,
+                        "Discovered endpoint for ${type.protocol}: ${endpoint.name} at ${endpoint.host}:${endpoint.port}"
+                    )
                     trySend(endpoint.toDiscoveredService(type))
                 }
             }
